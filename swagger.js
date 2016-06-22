@@ -1,5 +1,5 @@
 var YAML = require('yamljs'),
-    fs = require('fs');
+    FS = require('fs');
 
 var swaggerApi = {};
 
@@ -8,6 +8,12 @@ var HttpMethod = {
   POST : {value:'post'},
   PUT : {value: 'put'},
   DELETE : {value: 'delete'}
+};
+
+var ParamType = {
+  BODY : {value: 'body'},
+  PATH : {value: 'path'},
+  QUERY : {value: 'query'}
 };
 
 var MediaType = {
@@ -96,6 +102,11 @@ var HttpStatus = {
   NETWORK_AUTHENTICATION_REQUIRED : {value :511}
 };
 
+var Format = {
+  JSON : {value : 'json'},
+  YAML : {value : 'yaml'}
+};
+
 var data = {};
 
 function ApiInfo(title, description, version, host, basePath){
@@ -113,7 +124,7 @@ function ApiInfo(title, description, version, host, basePath){
 function ApiParameter(name, paramtype, description, required, type){
     return {
       name : name,
-      in : paramtype,
+      in : paramtype.value,
       description : description,
       required: required,
       type: type
@@ -121,33 +132,48 @@ function ApiParameter(name, paramtype, description, required, type){
 };
 
 function ApiResponse(code, description){
-  var response = {};
-  response[code.value]={
+  return {
+    code : code,
     description : description
   };
-  return response;
 }
 
 function ApiOperation(value, method, description, produces, consumes, parameters, responses){
   var route = {};
   route[value]=method.value;
   var tmp = {};
-  tmp[method.value] = {
-    description : description,
-    produces : produces,
-    consumes : consumes,
-    parameters : parameters,
-    responses: responses
-  };
+  tmp[method.value] = {};
+  if(description){
+    tmp[method.value].description = description;
+  }
+  if(produces){
+    tmp[method.value].produces = [produces.value];
+  }
+  if(consumes){
+    tmp[method.value].consumes = [consumes.value];
+  }
+  if(parameters){
+    tmp[method.value].parameters = parameters;
+  }
+  if(responses){
+    tmp[method.value].responses = responses;
+  }
   route[value] = tmp;
-  data.paths = [];
-  data.paths.push(route);
+  if(!data.paths){
+    data.paths = {};
+  }
+  if(data.paths[value])
+    data.paths[value][method.value] = tmp[method.value];
+  else
+    data.paths[value] = tmp;
 }
 
 function ApiResponses(){
-  var responses = [];
+  var responses = {};
   for(var i=0;i<arguments.length;i++){
-    responses.push(arguments[i]);
+    responses[arguments[i].code.value] = {
+      description : arguments[i].description
+    };
   }
   return responses;
 };
@@ -155,15 +181,41 @@ function ApiResponses(){
 function ApiParameters(){
   var parameters = [];
   for(var i=0;i<arguments.length;i++){
-    parameters.push(arguments[i]);
+    if(arguments[i].in == ParamType.BODY.value){
+      data.definitions = {};
+      data.definitions['Test'] = {
+        required: ['id'],
+        properties: {
+          id:{
+            description : 'id of patient',
+            type : 'string'
+          }
+        }
+      };
+      parameters.push({
+        name: 'Test',
+        in: 'body',
+        schema : {
+          '$ref': '#/definitions/Test'
+        }
+      });
+    }else{
+      parameters.push(arguments[i]);
+    }
   }
   return parameters;
 };
 
-function ApiGenerate(){
-  fs.writeFile('api.json', JSON.stringify(data, null, 4), function(err) {
-    console.log('File saved');
-  });
+function ApiGenerate(format){
+  if(format == Format.JSON){
+    FS.writeFile('api.json', JSON.stringify(data, null, 4), function(err) {
+      console.log('File saved');
+    });
+  }else{
+    FS.writeFile('api.yaml', YAML.stringify(data, 4), function(err) {
+      console.log('File saved');
+    });
+  }
 };
 
 exports.static = function(scope){
@@ -176,5 +228,7 @@ exports.static = function(scope){
   scope.ApiResponse = ApiResponse,
   scope.HttpMethod = HttpMethod,
   scope.HttpStatus = HttpStatus,
-  scope.MediaType = MediaType
+  scope.MediaType = MediaType,
+  scope.ParamType = ParamType
+  scope.Format = Format
 };
