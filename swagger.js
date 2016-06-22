@@ -1,8 +1,6 @@
 var YAML = require('yamljs'),
     FS = require('fs');
 
-var swaggerApi = {};
-
 var HttpMethod = {
   GET : {value:'get'},
   POST : {value:'post'},
